@@ -1,0 +1,8 @@
+NOTICE.md
+README.md
+setup.py
+ggrn_backend2.egg-info/PKG-INFO
+ggrn_backend2.egg-info/SOURCES.txt
+ggrn_backend2.egg-info/dependency_links.txt
+ggrn_backend2.egg-info/requires.txt
+ggrn_backend2.egg-info/top_level.txt
