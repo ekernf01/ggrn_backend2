@@ -1,12 +1,13 @@
 import os
 import anndata
 import pandas as pd
-
 import numpy as np
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader, random_split
+import torch
+torch.set_default_tensor_type(torch.DoubleTensor)
 # Eventually we may try to remove this dependency entirely
 os.environ['WANDB_MODE'] = 'offline'
 os.environ["WANDB_SILENT"] = "true"
@@ -17,9 +18,6 @@ from ggrn_backend2.dcdfg.linear_baseline.model import LinearGaussianModel
 from ggrn_backend2.dcdfg.lowrank_linear_baseline.model import LinearModuleGaussianModel
 from ggrn_backend2.dcdfg.lowrank_mlp.model import MLPModuleGaussianModel
 from ggrn_backend2.dcdfg.perturbseq_data import PerturbSeqDataset
-
-import torch
-torch.set_default_tensor_type(torch.DoubleTensor)
 
 class DCDFGWrapper:
     def __init__(self):
@@ -100,7 +98,7 @@ class DCDFGWrapper:
             mode="min",
         )
         trainer = pl.Trainer(
-            gpus=num_gpus,
+            num_nodes=num_gpus,
             max_epochs=num_train_epochs,
             logger=logger,
             val_check_interval=1.0,
@@ -136,7 +134,7 @@ class DCDFGWrapper:
             monitor="Val/nll", min_delta=1e-6, patience=5, verbose=verbose, mode="min"
         )
         trainer_fine = pl.Trainer(
-            gpus=num_gpus,
+            num_nodes=num_gpus,
             max_epochs=num_fine_epochs,
             logger=logger,
             val_check_interval=1.0,

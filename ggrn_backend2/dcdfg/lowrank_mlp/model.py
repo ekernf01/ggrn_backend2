@@ -130,14 +130,22 @@ class MLPModuleGaussianModel(pl.LightningModule):
         x, masks, regimes = batch
         nll, constraint_violation, reg = self.module.losses(x, masks)
         aug_lagrangian = self.get_augmented_lagrangian(nll, constraint_violation, reg)
-        return {
+        outs = {
             "aug_lagrangian": aug_lagrangian,
             "nll": nll,
             "constraint": constraint_violation,
             "reg": reg,
         }
+        self.validation_step_outputs.append(outs)
+        return outs
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_start(self) -> None:
+        super().on_validation_epoch_start()
+        self.validation_step_outputs = []
+        return
+    
+    def on_validation_epoch_end(self):
+        outputs = self.validation_step_outputs
         agg = {}
         for k in outputs[0]:
             agg[k] = torch.stack([dic[k] for dic in outputs]).mean().item()

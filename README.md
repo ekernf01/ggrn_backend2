@@ -9,11 +9,19 @@ This code is an interface to software for ["Large-Scale Differentiable Causal Di
     factor_graph_model.train(my_anndata)
     predictions_anndata = factor_graph_model.predict([('POU5F1', 5), ('NANOG', 0)])
     
-## Requirements
+### Input data
 
-Python 3.9+ is required. To install:
+Input data are expected to be AnnData objects with several specific metadata fields, such as "perturbation". For context, this wrapper over DCD-FG is part of a benchmarking study that includes a collection of RNA-seq data all formatted in a standard way. See our benchmarking repo for more information. To load a working example, use this code from our benchmarking infrastructure. 
+    
+```python
+import load_perturbations
+load_perturbations.set_data_path(
+    '../perturbation_data/perturbations' # Change this to wherever you placed our collection of perturbation data.
+)
+my_anndata = load_perturbations.load_perturbation("nakatake")
+```
 
-    pip install -r  requirements.txt
+### Dependencies
 
-
-wandb is required for now. Follow the steps [here](https://docs.wandb.ai/quickstart).
+- For stand-alone use of this package, there is a `requirements.txt` so you can use pip to install it and the deps should be taken care of.
+- This is part of a benchmarking study that includes a conda environment with exact deps pinned. See our benchmarking repo for more information. 
