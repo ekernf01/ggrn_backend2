@@ -11,7 +11,7 @@ This code is an interface to software for ["Large-Scale Differentiable Causal Di
     
 ### Input data
 
-Input data are expected to be AnnData objects with several specific metadata fields, such as "perturbation". For context, this wrapper over DCD-FG is part of a benchmarking study that includes a collection of RNA-seq data all formatted in a standard way. See our benchmarking repo for more information. To load a working example, use this code from our benchmarking infrastructure. 
+Input data are expected to be AnnData objects with several specific metadata fields, such as "perturbation". For context, this wrapper over DCD-FG is part of a benchmarking study that includes a collection of RNA-seq data all formatted in a standard way. See our [benchmarking repo](https://github.com/ekernf01/perturbation_benchmarking) for more information. To load a working example, use this code from our benchmarking infrastructure. 
     
 ```python
 import load_perturbations
