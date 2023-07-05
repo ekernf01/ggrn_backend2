@@ -4,7 +4,7 @@ This code is an interface to software for ["Large-Scale Differentiable Causal Di
 
 ## Usage
 
-    import dcdfg_wrapper
+    import ggrn_backend2.api as dcdfg_wrapper 
     factor_graph_model = DCDFGWrapper()
     factor_graph_model.train(my_anndata)
     predictions_anndata = factor_graph_model.predict([('POU5F1', 5), ('NANOG', 0)])
