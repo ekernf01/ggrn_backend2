@@ -29,7 +29,7 @@ class DCDFGWrapper:
         adata: anndata.AnnData, 
         train_batch_size: int = 64,
         num_train_epochs: int = 600,
-        num_fine_epochs: int = 50,
+        num_fine_epochs: int = 100,
         num_modules: int = 20,
         learning_rate: float = 1e-3,
         regularization_parameter: float = 0.1,
