@@ -18,12 +18,13 @@ from ggrn_backend2.dcdfg.linear_baseline.model import LinearGaussianModel
 from ggrn_backend2.dcdfg.lowrank_linear_baseline.model import LinearModuleGaussianModel
 from ggrn_backend2.dcdfg.lowrank_mlp.model import MLPModuleGaussianModel
 from ggrn_backend2.dcdfg.perturbseq_data import PerturbSeqDataset
-
+from sklearn.model_selection import KFold
+    
 class DCDFGWrapper:
     def __init__(self):
         self.model = None
         self.train_dataset = None
-    
+
     def train(
         self,
         adata: anndata.AnnData, 
@@ -40,6 +41,8 @@ class DCDFGWrapper:
         verbose: bool = False,
         num_gpus = 1 if torch.cuda.is_available() else 0,
     ):
+        if regularization_parameter is None:
+            regularization_parameter = 0.1
         train_dataset = PerturbSeqDataset(adata)
         print("Train dataset size", train_dataset.dim, len(train_dataset))
         nb_nodes = train_dataset.dim
@@ -264,3 +267,55 @@ class DCDFGWrapper:
             )
         
         return predicted_adata
+
+class DCDFGCV:
+    def __init__(self):
+        self.final_model = None
+        return
+    
+    def train(
+        self,
+        adata: anndata.AnnData, 
+        regularization_parameters: np.ndarray = [0.001, 0.01, 0.1, 1, 10],
+        latent_dimensions: np.ndarray = [5, 10, 20, 50],
+        **kwargs,
+    ):
+        self.regularization_parameters = regularization_parameters
+        data_splitter = KFold(3)
+        self.error = {r:{l:0 for l in latent_dimensions} for r in regularization_parameters}
+        for r in regularization_parameters:
+            for l in latent_dimensions:
+                for train,test in data_splitter.split(adata.X):
+                    obs = np.where(adata.obs["is_control"]) # training data must include unperturbed samples
+                    train = np.array(list(train) + list(obs[0]))
+                    factor_graph_model = DCDFGWrapper()
+                    factor_graph_model.train(
+                        adata = adata[train,:],
+                        regularization_parameter = r,
+                        num_modules=l,
+                        **kwargs,
+                    )
+                    predicted = factor_graph_model.predict(
+                        perturbations = [(expression, elap) for _, expression, elap in adata[test,:].obs[["perturbation", "expression_level_after_perturbation"]].itertuples() ]
+                    )
+                    self.error[r][l] += np.linalg.norm(predicted.X - adata[test,:].X)
+
+        # Find min error 
+        min = np.inf
+        self.best_regularization_parameter = 0.001
+        self.best_dimension = 5
+        for r in regularization_parameters:
+            for l in latent_dimensions:
+                if self.error[r][l] < min:
+                    min = self.error[r][l],
+                    self.best_regularization_parameter = r,
+                    self.best_dimension = l
+
+        self.final_model = DCDFGWrapper()
+        self.final_model.train(
+            adata = adata,
+            regularization_parameter = self.best_regularization_parameter,
+            num_modules = self.best_dimension,
+            **kwargs,
+        )
+        return 

@@ -31,7 +31,7 @@ class PerturbSeqDataset(Dataset):
         obs_regime = np.unique(
             all_regimes[np.where([mask == [] for mask in all_masks])[0]]
         )
-        assert len(obs_regime) == 1
+        assert len(obs_regime) == 1, "No control samples found. The data must include un-perturbed samples."
         obs_regime = obs_regime[0]
 
         self.data = all_data
