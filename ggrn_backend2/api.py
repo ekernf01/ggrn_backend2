@@ -282,23 +282,27 @@ class DCDFGCV:
     ):
         self.regularization_parameters = regularization_parameters
         data_splitter = KFold(3)
-        self.error = {r:{l:0 for l in latent_dimensions} for r in regularization_parameters}
+        self.error = {r:{l:0.0 for l in latent_dimensions} for r in regularization_parameters}
         for r in regularization_parameters:
             for l in latent_dimensions:
                 for train,test in data_splitter.split(adata.X):
                     obs = np.where(adata.obs["is_control"]) # training data must include unperturbed samples
                     train = np.array(list(train) + list(obs[0]))
                     factor_graph_model = DCDFGWrapper()
-                    factor_graph_model.train(
-                        adata = adata[train,:],
-                        regularization_parameter = r,
-                        num_modules=l,
-                        **kwargs,
-                    )
-                    predicted = factor_graph_model.predict(
-                        perturbations = [(expression, elap) for _, expression, elap in adata[test,:].obs[["perturbation", "expression_level_after_perturbation"]].itertuples() ]
-                    )
-                    self.error[r][l] += np.linalg.norm(predicted.X - adata[test,:].X)
+                    try:
+                        factor_graph_model.train(
+                            adata = adata[train,:],
+                            regularization_parameter = r,
+                            num_modules=l,
+                            **kwargs,
+                        )
+                        predicted = factor_graph_model.predict(
+                            perturbations = [(expression, elap) for _, expression, elap in adata[test,:].obs[["perturbation", "expression_level_after_perturbation"]].itertuples() ]
+                        )
+                        self.error[r][l] += np.linalg.norm(predicted.X - adata[test,:].X)
+                    except:
+                        self.error[r][l] = np.Inf
+                    break
 
         # Find min error 
         min = np.inf
@@ -307,8 +311,8 @@ class DCDFGCV:
         for r in regularization_parameters:
             for l in latent_dimensions:
                 if self.error[r][l] < min:
-                    min = self.error[r][l],
-                    self.best_regularization_parameter = r,
+                    min = self.error[r][l]
+                    self.best_regularization_parameter = r
                     self.best_dimension = l
 
         self.final_model = DCDFGWrapper()
