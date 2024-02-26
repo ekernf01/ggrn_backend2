@@ -276,7 +276,7 @@ class DCDFGCV:
     def train(
         self,
         adata: anndata.AnnData, 
-        regularization_parameters: np.ndarray = [0.001, 0.01, 0.1, 1, 10],
+        regularization_parameters: np.ndarray = [10, 1, 0.1, 0.01, 0.001],
         latent_dimensions: np.ndarray = [5, 10, 20, 50],
         **kwargs,
     ):
@@ -306,7 +306,7 @@ class DCDFGCV:
 
         # Find min error 
         min = np.inf
-        self.best_regularization_parameter = 0.001
+        self.best_regularization_parameter = 10
         self.best_dimension = 5
         for r in regularization_parameters:
             for l in latent_dimensions:
@@ -316,10 +316,13 @@ class DCDFGCV:
                     self.best_dimension = l
 
         self.final_model = DCDFGWrapper()
-        self.final_model.train(
-            adata = adata,
-            regularization_parameter = self.best_regularization_parameter,
-            num_modules = self.best_dimension,
-            **kwargs,
-        )
-        return 
+        try:
+            self.final_model.train(
+                adata = adata,
+                regularization_parameter = self.best_regularization_parameter,
+                num_modules = self.best_dimension,
+                **kwargs,
+            )
+        except Exception as e:
+            raise ValueError(f"Unable to train DCDFG even using the best parameters we could find. Error was {repr(e)}.")
+        return self.final_model
