@@ -315,6 +315,11 @@ class DCDFGCV:
                     self.best_regularization_parameter = r
                     self.best_dimension = l
 
+        print(f"best dimension: {self.best_dimension}")
+        print(f"best regularization parameter: {self.best_regularization_parameter}")
+        print(f"best error: {min}")
+        print("all error:")
+        print(self.error)
         self.final_model = DCDFGWrapper()
         try:
             self.final_model.train(
