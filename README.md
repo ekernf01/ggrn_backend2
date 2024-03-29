@@ -16,11 +16,11 @@ Note: this code will generate Wandb logging files as a side effect.
 Input data are expected to be AnnData objects with several specific metadata fields, such as "perturbation". For context, this wrapper over DCD-FG is part of a benchmarking study that includes a collection of RNA-seq data all formatted in a standard way. See our [benchmarking repo](https://github.com/ekernf01/perturbation_benchmarking) or [data collection](https://github.com/ekernf01/perturbation_data) for more information. To load a suitable example dataset, install our benchmarking infrastructure and use the following code. 
     
 ```python
-import load_perturbations
-load_perturbations.set_data_path(
+import pereggrn_perturbations
+pereggrn_perturbations.set_data_path(
     '../perturbation_data/perturbations' # Change this to wherever you placed our collection of perturbation data.
 )
-my_anndata = load_perturbations.load_perturbation("nakatake")
+my_anndata = pereggrn_perturbations.load_perturbation("nakatake")
 ```
 
 ### Dependencies

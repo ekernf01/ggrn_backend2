@@ -188,12 +188,16 @@ class DCDFGWrapper:
         
         return self
 
-    def predict(self, perturbations: list, baseline_expression: np.ndarray = None):
+    def predict(self, predictions_metadata = pd.DataFrame, baseline_expression: np.ndarray = None):
         """Predict expression after perturbation.
 
         Args:
-            perturbations (list): list of tuples with perturbed gene and its expression level, e.g. [('NANOG', 0), ('POU5F1', 0)]
-                These may also be comma-separated multi-gene lists: [('NANOG,SOX2', '0,0')]. 
+            predictions_metadata (pd.DataFrame):  Dataframe with columns `cell_type`, `timepoint`, `perturbation`, and 
+                `expression_level_after_perturbation`. It will default to `predictions.obs` or `starting_expression.obs` if those 
+                are provided. The meaning is "predict expression in `cell_type` at `time_point` if `perturbation` were set to 
+                `expression_level_after_perturbation`". Anything with expression equal tonp.nan will be treated as a control, no matter the name.
+                `perturbation` and `expression_level_after_perturbation` can contain comma-separated strings for multi-gene perturbations, for 
+                example "NANOG,POU5F1" for `perturbation` and "5.43,0.0" for `expression_level_after_perturbation`. 
                 Anything with an unrecognized gene name or a NaN expression or both is treated like a control, e.g. [('Control', 0), ('NANOG', np.NaN)]
             baseline_expression (numpy array, optional): starting expression profile, n_perts by n_features. Defaults to None.
 
@@ -204,7 +208,7 @@ class DCDFGWrapper:
 
         # Check or make baseline expression
         if baseline_expression is None:
-            baseline_expression = np.zeros((len(perturbations), self.train_dataset.dataset.adata.n_vars))
+            baseline_expression = np.zeros((predictions_metadata.shape[0], self.train_dataset.dataset.adata.n_vars))
             baseline_expression_one = self.train_dataset.dataset.adata.X[
                 self.train_dataset.dataset.adata.obs["is_control"],:
             ].mean(axis=0)
@@ -212,20 +216,14 @@ class DCDFGWrapper:
                 baseline_expression[i,:] = baseline_expression_one.copy()
         else:
             assert type(baseline_expression) in {np.ndarray, np.matrix}, f"baseline_expression must be a numpy array; got type {type(baseline_expression)}"
-            assert baseline_expression.shape[0] == len(perturbations), f"baseline_expression must have {len(perturbations)} obs; got {baseline_expression.shape[0]}."
+            assert baseline_expression.shape[0] == predictions_metadata.shape[0], f"baseline_expression must have {predictions_metadata.shape[0]} obs; got {baseline_expression.shape[0]}."
             assert baseline_expression.shape[1] == len(genes), f"baseline_expression must have {len(genes)} obs; got {baseline_expression.shape[1]}."
             
         # Make container for predictions
         predicted_adata = anndata.AnnData(
-            X = np.zeros((len(perturbations), len(genes))),
+            X = np.zeros((predictions_metadata.shape[0], len(genes))),
             var = self.train_dataset.dataset.adata.var.copy(),
-            obs = pd.DataFrame(
-                {
-                    "perturbation"                       :[p[0] for p in perturbations], 
-                    "expression_level_after_perturbation":[p[1] for p in perturbations],
-                },
-                index = range(len(perturbations)), 
-            ),
+            obs = predictions_metadata,
             dtype = np.float64
         )
 
@@ -235,9 +233,9 @@ class DCDFGWrapper:
         
         def reformat_perturbation(p):
             # Comma-separated lists allow multi-gene perts
-            pert_genes = p[0].split(",")
-            target_val = [float(f) for f in str(p[1]).split(",")]
-            assert len(pert_genes) == len(target_val), f"Malformed perturbation in sample {i}: {p[0]}, {p[1]}"
+            pert_genes = p["perturbation"].split(",")
+            target_val = [float(f) for f in str(p["expression_level_after_perturbation"]).split(",")]
+            assert len(pert_genes) == len(target_val), f"Malformed perturbation in sample {i}: {p}"
             # Ignore anything with unknown expression or gene 
             not_nan = [i for i, x in enumerate(target_val) if not np.isnan(x)]
             pert_genes = [pert_genes[i] for i in not_nan]
@@ -253,9 +251,9 @@ class DCDFGWrapper:
             target_loc = [convert_gene_symbol_to_index(g) for g in pert_genes]
             return target_loc, target_val
 
-        KO_gene_indices = [None for _ in perturbations]
-        KO_gene_values  = [None for _ in perturbations]
-        for obs_i, p in enumerate(perturbations):
+        KO_gene_indices = [None for _ in predictions_metadata["perturbations"]]
+        KO_gene_values  = [None for _ in predictions_metadata["perturbations"]]
+        for obs_i, p in predictions_metadata["perturbations"].iterrows():
             KO_gene_indices[obs_i], KO_gene_values[obs_i]  = reformat_perturbation(p)
 
         with torch.no_grad():
@@ -297,7 +295,7 @@ class DCDFGCV:
                             **kwargs,
                         )
                         predicted = factor_graph_model.predict(
-                            perturbations = [(expression, elap) for _, expression, elap in adata[test,:].obs[["perturbation", "expression_level_after_perturbation"]].itertuples() ]
+                            prediction_metadata = adata[test,:].obs[["perturbation", "expression_level_after_perturbation"]]
                         )
                         self.error[r][l] += np.linalg.norm(predicted.X - adata[test,:].X)
                     except:
