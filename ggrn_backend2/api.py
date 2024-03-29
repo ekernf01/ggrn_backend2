@@ -28,7 +28,8 @@ class DCDFGWrapper:
     def train(
         self,
         adata: anndata.AnnData, 
-        train_batch_size: int = 64,
+        train_batch_size: int = 4096,
+        val_batch_size: int = 4096,
         num_train_epochs: int = 600,
         num_fine_epochs: int = 100,
         num_modules: int = 20,
@@ -110,7 +111,7 @@ class DCDFGWrapper:
         trainer.fit(
             self.model,
             DataLoader(train_dataset, batch_size=train_batch_size, num_workers=4),
-            DataLoader(val_dataset, num_workers=8, batch_size=256),
+            DataLoader(val_dataset, num_workers=8, batch_size=val_batch_size),
         )
         wandb.log({"nll_val": self.model.nlls_val[-1]})
         wandb.finish()
@@ -146,7 +147,7 @@ class DCDFGWrapper:
         trainer_fine.fit(
             self.model,
             DataLoader(train_dataset, batch_size=train_batch_size),
-            DataLoader(val_dataset, num_workers=2, batch_size=256),
+            DataLoader(val_dataset, num_workers=2, batch_size=val_batch_size),
         )
 
         # Original implementation extracts the network structure for later inspection
@@ -157,7 +158,7 @@ class DCDFGWrapper:
         # Step 4: add valid nll and dump metrics
         pred = trainer_fine.predict(
             ckpt_path="best",
-            dataloaders=DataLoader(val_dataset, num_workers=8, batch_size=256),
+            dataloaders=DataLoader(val_dataset, num_workers=8, batch_size=val_batch_size),
         )
         val_nll = np.mean([x.item() for x in pred])
     
