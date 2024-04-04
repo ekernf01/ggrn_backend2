@@ -252,9 +252,9 @@ class DCDFGWrapper:
             target_loc = [convert_gene_symbol_to_index(g) for g in pert_genes]
             return target_loc, target_val
 
-        KO_gene_indices = [None for _ in predictions_metadata["perturbations"]]
-        KO_gene_values  = [None for _ in predictions_metadata["perturbations"]]
-        for obs_i, p in predictions_metadata["perturbations"].iterrows():
+        KO_gene_indices = [None for _ in predictions_metadata["perturbation"]]
+        KO_gene_values  = [None for _ in predictions_metadata["perturbation"]]
+        for obs_i, p in predictions_metadata["perturbation"].iterrows():
             KO_gene_indices[obs_i], KO_gene_values[obs_i]  = reformat_perturbation(p)
 
         with torch.no_grad():
