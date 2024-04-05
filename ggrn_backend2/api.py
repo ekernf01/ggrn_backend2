@@ -311,7 +311,6 @@ class DCDFGCV:
                     except Exception as e:
                         print(f"DCD-FG failed with error {repr(e)} on params r={r}, l={l}.")
                         self.error[r][l] = np.Inf
-                        raise e
                     break
 
         # Find min error 
