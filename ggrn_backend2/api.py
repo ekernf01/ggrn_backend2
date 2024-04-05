@@ -206,6 +206,7 @@ class DCDFGWrapper:
             anndata.AnnData: predicted expression
         """
         genes = self.train_dataset.dataset.adata.var_names
+        assert predictions_metadata.columns.is_unique, "Column names in predictions_metadata must be unique."
 
         # Check or make baseline expression
         if baseline_expression is None:
@@ -234,9 +235,9 @@ class DCDFGWrapper:
         
         def reformat_perturbation(p):
             # Comma-separated lists allow multi-gene perts
-            pert_genes = p["perturbation"].split(",")
+            pert_genes = str(p["perturbation"]).split(",")
             target_val = [float(f) for f in str(p["expression_level_after_perturbation"]).split(",")]
-            assert len(pert_genes) == len(target_val), f"Malformed perturbation in sample {i}: {p}"
+            assert len(pert_genes) == len(target_val), f"Malformed perturbation in sample {i}: {p}. Parsed as: {pert_genes}, {target_val}."
             # Ignore anything with unknown expression or gene 
             not_nan = [i for i, x in enumerate(target_val) if not np.isnan(x)]
             pert_genes = [pert_genes[i] for i in not_nan]
@@ -254,8 +255,8 @@ class DCDFGWrapper:
 
         KO_gene_indices = [None for _ in predictions_metadata["perturbation"]]
         KO_gene_values  = [None for _ in predictions_metadata["perturbation"]]
-        for obs_i, p in predictions_metadata["perturbation"].iterrows():
-            KO_gene_indices[obs_i], KO_gene_values[obs_i]  = reformat_perturbation(p)
+        for i, p in enumerate(predictions_metadata.iterrows()):
+            KO_gene_indices[i], KO_gene_values[i]  = reformat_perturbation(p[1])
 
         with torch.no_grad():
             predicted_adata.X  = self.model.simulateKO(
@@ -275,11 +276,19 @@ class DCDFGCV:
     def train(
         self,
         adata: anndata.AnnData, 
-        regularization_parameters: np.ndarray = [10, 1, 0.1, 0.01, 0.001],
-        latent_dimensions: np.ndarray = [5, 10, 20, 50],
+        regularization_parameters: np.ndarray = None,
+        latent_dimensions: np.ndarray = None,
         **kwargs,
     ):
-        self.regularization_parameters = regularization_parameters
+        if regularization_parameters is None: 
+            regularization_parameters = np.array([10, 1, 0.1, 0.01, 0.001])
+        if latent_dimensions is None:
+            latent_dimensions = np.array([5, 10, 20, 50])
+        # These never pass!! Why not??
+        if "regularization_parameter" in kwargs.keys():
+            raise ValueError("regularization_parameter may not be passed to DCDFGCV. Try DCDFGWrapper instead.")
+        if "num_modules" in kwargs.keys():
+            raise ValueError("num_modules may not be passed to DCDFGCV. Try DCDFGWrapper instead.")
         data_splitter = KFold(3)
         self.error = {r:{l:0.0 for l in latent_dimensions} for r in regularization_parameters}
         for r in regularization_parameters:
@@ -296,11 +305,13 @@ class DCDFGCV:
                             **kwargs,
                         )
                         predicted = factor_graph_model.predict(
-                            prediction_metadata = adata[test,:].obs[["perturbation", "expression_level_after_perturbation"]]
+                            predictions_metadata = adata[test,:].obs[["perturbation", "expression_level_after_perturbation"]]
                         )
                         self.error[r][l] += np.linalg.norm(predicted.X - adata[test,:].X)
-                    except:
+                    except Exception as e:
+                        print(f"DCD-FG failed with error {repr(e)} on params r={r}, l={l}.")
                         self.error[r][l] = np.Inf
+                        raise e
                     break
 
         # Find min error 

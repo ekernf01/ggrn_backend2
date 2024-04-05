@@ -14,12 +14,8 @@ import warnings
 sys.path.append(os.path.join(PROJECT_PATH, "perturbation_data", "setup"))
 import ingestion
 importlib.reload(ingestion)
-sys.path.append(os.path.join(PROJECT_PATH, "perturbation_benchmarking", "src"))
-import ggrn
-importlib.reload(ggrn)
-sys.path.append(os.path.expanduser(os.path.join(PROJECT_PATH, 'network_collection', 'load_networks'))) 
-import load_networks
-importlib.reload(load_networks)
+import ggrn.api as ggrn
+import pereggrn_networks
 
 # Global settings for this test script
 warnings.filterwarnings("ignore")
@@ -118,6 +114,7 @@ adata = ingestion.describe_perturbation_effect(adata, "knockdown", multiple_gene
 adata.uns["weight"] = weight.numpy()
 adata.uns["weight_mask"] = adjMat.numpy()
 adata.uns["bias"]   = bias
+adata.obs_names_make_unique()
 print(adata)
 test_data = adata
 
@@ -128,12 +125,13 @@ class TestDCDFG(unittest.TestCase):
 
     def test_NOTEARS_run(self):
         grn = ggrn.GRN(train=test_data, eligible_regulators=test_data.var_names, validate_immediately=False)
-        grn.extract_tf_activity(method = "tf_rna")
         grn.fit(
             method = "DCDFG-exp-linear-False",
             cell_type_sharing_strategy = "identical",
             network_prior = "ignore",
             kwargs = { 
+                "regularization_parameters": [0.1],
+                "latent_dimensions": [5],
                 "num_train_epochs": 2, 
                 "num_fine_epochs": 1,
                 "num_gpus": 1 if torch.cuda.is_available() else 0,
@@ -144,12 +142,13 @@ class TestDCDFG(unittest.TestCase):
         
     def test_NOTEARSLR_run(self):
         grn = ggrn.GRN(train=test_data, eligible_regulators=test_data.var_names, validate_immediately=False)
-        grn.extract_tf_activity(method = "tf_rna")
         grn.fit(
             method = "DCDFG-spectral_radius-linearlr-False",
             cell_type_sharing_strategy = "identical",
             network_prior = "ignore",
             kwargs = { 
+                "regularization_parameters": [0.1],
+                "latent_dimensions": [5],
                 "num_train_epochs": 20, # This fails with 2 epochs 
                 "num_fine_epochs": 1,
                 "num_gpus": 1 if torch.cuda.is_available() else 0,
@@ -160,12 +159,13 @@ class TestDCDFG(unittest.TestCase):
         
     def test_NOBEARS_run(self):
         grn = ggrn.GRN(train=test_data, eligible_regulators=test_data.var_names, validate_immediately=False)
-        grn.extract_tf_activity(method = "tf_rna")
         grn.fit(
             method = "DCDFG-exp-linear-True",
             cell_type_sharing_strategy = "identical",
             network_prior = "ignore",
             kwargs = { 
+                "regularization_parameters": [0.1],
+                "latent_dimensions": [5],
                 "num_train_epochs": 2, 
                 "num_fine_epochs": 1,
                 "num_gpus": 1 if torch.cuda.is_available() else 0,
@@ -176,28 +176,29 @@ class TestDCDFG(unittest.TestCase):
         
     def test_DCDFG_run(self):
         grn = ggrn.GRN(train=test_data, eligible_regulators=test_data.var_names, validate_immediately=False)
-        grn.extract_tf_activity(method = "tf_rna")
         grn.fit(
             method = "DCDFG-spectral_radius-mlplr-False",
             cell_type_sharing_strategy = "identical",
             network_prior = "ignore",
             kwargs = { 
+                "regularization_parameters": [0.1],
+                "latent_dimensions": [4],
                 "num_train_epochs": 2, 
                 "num_fine_epochs": 1,
                 "num_gpus": 1 if torch.cuda.is_available() else 0,
                 "train_batch_size": 64,
                 "verbose": False,
-                "num_modules": 4,
             }
         )
     
-
+    # In this test we manually set the coeffs and make sure the prediction is right.
     def test_NOTEARS_prediction(self):
         grn = ggrn.GRN(train=test_data, eligible_regulators=test_data.var_names, validate_immediately=False)
-        grn.extract_tf_activity(method = "tf_rna")
         grn.fit(
             method = "DCDFG-spectral_radius-linear-False", 
             kwargs = { 
+                "regularization_parameters": [0.1],
+                "latent_dimensions": [5],
                 "num_train_epochs": 2, 
                 "num_fine_epochs": 1,
                 "num_gpus": 1 if torch.cuda.is_available() else 0,
@@ -228,11 +229,11 @@ class TestDCDFG(unittest.TestCase):
              [0,     0, 0, 0, 0]])), requires_grad=False)
         control = test_data.X[-1,:]
         koAnswer2 = grn.predict(
-            starting_expression = anndata.AnnData(
+            predictions = anndata.AnnData(
                 X=np.tile(control.copy(), (7,1)), 
                 var = pd.DataFrame(index=[f'Gene{i}' for i in range(5)]),
-            ),
-            perturbations = [(f'Gene{i}',1000) for i in range(5)] + [("control", 0)] + [("Gene0", np.nan)]
+                obs = pd.DataFrame([(f'Gene{i}',1000) for i in range(5)] + [("control", 0)] + [("Gene0", np.nan)], columns = ["perturbation", "expression_level_after_perturbation"])
+            )
         )
         np.testing.assert_almost_equal(
             koAnswer2.X / np.array([
@@ -249,7 +250,7 @@ class TestDCDFG(unittest.TestCase):
         )
 
         koAnswer3 = grn.predict(
-            perturbations = [(f'Gene{i}',1000) for i in range(5)] + [("control", 0)] + [("Gene0", np.nan)]
+            predictions_metadata = pd.DataFrame([(f'Gene{i}',1000) for i in range(5)] + [("control", 0)] + [("Gene0", np.nan)], columns = ["perturbation", "expression_level_after_perturbation"])
         )
         np.testing.assert_almost_equal(
             koAnswer3.X / np.array([
@@ -265,22 +266,22 @@ class TestDCDFG(unittest.TestCase):
             decimal=2
         )
 
-
+    # In this test we make sure the inference works given data.
     def test_NOTEARS_inference(self):
         grn = ggrn.GRN(train=test_data, eligible_regulators=test_data.var_names, validate_immediately=False)
-        grn.extract_tf_activity(method = "tf_rna")
         grn.fit(
             method = "DCDFG-exp-linear-False",
             # method = "DCDFG-spectral_radius-mlplr-False",
             cell_type_sharing_strategy = "identical",
             network_prior = "ignore",
             kwargs = { 
+                "regularization_parameters": [0.1],
+                "latent_dimensions": [5],
                 "num_train_epochs": 600, 
                 "num_fine_epochs": 100,
                 "num_gpus": [1] if torch.cuda.is_available() else 0,
                 "train_batch_size": 64,
                 "verbose": False,
-                "regularization_parameter": 0.1,
             }
         )
         posWeight = (grn.models.model.module.weights * grn.models.model.module.weight_mask).detach().cpu().numpy()
