@@ -295,7 +295,7 @@ class DCDFGCV:
         """
         if regularization_parameters is None: 
             regularization_parameters = np.array([10, 1, 0.1, 0.01, 0.001])
-        if latent_dimensions is None:
+        if latent_dimensions is None:``
             latent_dimensions = np.array([5, 10, 20, 50])
         # These never pass!! Why not??
         if "regularization_parameter" in kwargs.keys():
@@ -333,7 +333,7 @@ class DCDFGCV:
                     except Exception as e:
                         print(f"DCD-FG failed with error {repr(e)} on params r={r}, l={l}.")
                         self.error[r][l] = np.Inf
-                    with open(filename, 'wb') as f:
+                    with open(memoization_file, 'wb') as f:
                         pickle.dump(self.error[r][l], f)
                     break
 
