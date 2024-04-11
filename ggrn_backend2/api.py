@@ -8,6 +8,7 @@ from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader, random_split
 import torch
 import pickle
+import shutil
 torch.set_default_tensor_type(torch.DoubleTensor)
 # Eventually we may try to remove this dependency entirely
 os.environ['WANDB_MODE'] = 'offline'
