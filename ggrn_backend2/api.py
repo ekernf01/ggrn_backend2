@@ -278,8 +278,21 @@ class DCDFGCV:
         adata: anndata.AnnData, 
         regularization_parameters: np.ndarray = None,
         latent_dimensions: np.ndarray = None,
+        memoization_folder: str = "dcdfgcv_memoization",
+        do_clean_memoization: bool = True,
         **kwargs,
-    ):
+    ) -> DCDFGWrapper:
+        """Train a DCDFG model using cross-validation to find the best regularization parameter and latent dimension.
+
+        Parameters:
+        - adata (anndata.AnnData): The AnnData object containing the input data.
+        - regularization_parameters (np.ndarray, optional): Array of regularization parameter values. Default is [10, 1, 0.1, 0.01, 0.001].
+        - latent_dimensions (np.ndarray, optional): Array of latent dimensions. Default is [5, 10, 20, 50].
+        - memoization_folder (str, optional): Path to the folder where CV results will be stored. Default is "dcdfgcv_memoization".
+        - do_clean_memoization (bool, optional): Whether to clean the memoization folder after training. Default is True.
+        - **kwargs: Additional keyword arguments to be passed to DCDFGWrapper.train().
+        
+        """
         if regularization_parameters is None: 
             regularization_parameters = np.array([10, 1, 0.1, 0.01, 0.001])
         if latent_dimensions is None:
@@ -291,8 +304,17 @@ class DCDFGCV:
             raise ValueError("num_modules may not be passed to DCDFGCV. Try DCDFGWrapper instead.")
         data_splitter = KFold(3)
         self.error = {r:{l:0.0 for l in latent_dimensions} for r in regularization_parameters}
+        os.makedirs(memoization_folder, exist_ok=True)
         for r in regularization_parameters:
             for l in latent_dimensions:
+                memoization_file = memoization_folder + f"/{r}_{l}.pkl"
+                try: 
+                    with open(memoization_file, 'rb') as f:
+                        self.error[r][l] = pickle.load(f)
+                    continue
+                except FileNotFoundError:
+                    pass
+
                 for train,test in data_splitter.split(adata.X):
                     obs = np.where(adata.obs["is_control"]) # training data must include unperturbed samples
                     train = np.array(list(train) + list(obs[0]))
@@ -311,6 +333,8 @@ class DCDFGCV:
                     except Exception as e:
                         print(f"DCD-FG failed with error {repr(e)} on params r={r}, l={l}.")
                         self.error[r][l] = np.Inf
+                    with open(filename, 'wb') as f:
+                        pickle.dump(self.error[r][l], f)
                     break
 
         # Find min error 
@@ -339,4 +363,6 @@ class DCDFGCV:
             )
         except Exception as e:
             raise ValueError(f"Unable to train DCDFG even using the best parameters we could find. Error was {repr(e)}.")
+        if do_clean_memoization:
+            shutil.rmtree(memoization_folder)
         return self.final_model
